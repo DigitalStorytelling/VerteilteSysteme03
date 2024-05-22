@@ -10,29 +10,29 @@ import scala.collection.immutable.HashMap
 
 object Finance {
 
-  // todo: check if right, why ConsumerController
-  val financekey = ServiceKey[ConsumerController.Command[CommandFinance]]("Finance")
+  val financekey = ServiceKey[ConsumerController.Command[SaveCustomerAndPrice]]("Finance")
 
   def apply(mapCustomer: HashMap[Int, Int] = new HashMap()): Behavior[CommandFinance] = {
     Behaviors.setup { context =>
 
-      //todo:
       val deliveryAdapter =
-        context.messageAdapter[ConsumerController.Delivery[SaveCustomerAndPrice]](DeliveryFinance(_))
+        context.messageAdapter[ConsumerController.Delivery[SaveCustomerAndPrice]](WrappedDelivery(_))
+
       val consumerController =
         context.spawn(ConsumerController(financekey), "consumerController")
       consumerController ! ConsumerController.Start(deliveryAdapter)
 
 
       Behaviors.receiveMessage {
-        case currentOrder: SaveCustomerAndPrice =>
+        case WrappedDelivery(delivery) =>
 
-          val currentSum = mapCustomer.getOrElse(currentOrder.customer.id, 0)
-          val updatedCustomer = mapCustomer + (currentOrder.customer.id -> (currentSum + currentOrder.totalPrice))
+          val currentSum = mapCustomer.getOrElse(delivery.message.customer.id, 0)
+          val updatedCustomer = mapCustomer + (delivery.message.customer.id -> (currentSum + delivery.message.totalPrice))
 
           apply(updatedCustomer)
 
-          // delivery.confirmTo ! ConsumerController.Confirmed
+          delivery.confirmTo ! ConsumerController.Confirmed
+          Behaviors.same
 
         case currentCustomer: PrintCustomerAndPrice =>
 
@@ -49,5 +49,17 @@ object Finance {
   case class PrintCustomerAndPrice(id: Int, replyTo: ActorRef[CommandReplyDumper]) extends CommandFinance
 
   //todo:
-  case class DeliveryFinance(d: ConsumerController.Delivery[SaveCustomerAndPrice])
+  case class WrappedDelivery(d: ConsumerController.Delivery[SaveCustomerAndPrice]) extends CommandFinance
 }
+
+/*case currentOrder: SaveCustomerAndPrice =>
+
+       val currentSum = mapCustomer.getOrElse(currentOrder.customer.id, 0)
+       val updatedCustomer = mapCustomer + (currentOrder.customer.id -> (currentSum + currentOrder.totalPrice))
+
+       apply(updatedCustomer)
+
+       // Confirm message delivery after processing
+        currentOrder.confirmTo ! ConsumerController.Confirmed
+
+     // delivery.confirmTo ! ConsumerController.Confirmed*/

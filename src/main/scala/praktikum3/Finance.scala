@@ -17,6 +17,8 @@ object Finance {
   def apply(mapCustomer: HashMap[Int, Int] = new HashMap()): Behavior[CommandFinance] = {
     Behaviors.setup { context =>
 
+      context.log.info("Finance")
+
       val deliveryAdapter =
         context.messageAdapter[ConsumerController.Delivery[SaveCustomerAndPrice]](WrappedDelivery(_))
 

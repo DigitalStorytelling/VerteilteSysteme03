@@ -14,6 +14,8 @@ object Stock {
   def apply(mapStock: HashMap[Int, Int] = new HashMap()): Behavior[CommandStock] = {
     Behaviors.setup { (context) =>
 
+      context.log.info("Stock")
+
       val deliveryAdapter =
         context.messageAdapter[ConsumerController.Delivery[SaveItems]](WrappedDelivery(_))
 

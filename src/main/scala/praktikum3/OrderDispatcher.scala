@@ -3,11 +3,9 @@ package praktikum3
 import akka.actor.typed.delivery.WorkPullingProducerController
 import praktikum3.Finance.{CommandFinance, PrintCustomerAndPrice}
 import praktikum3.Reader.{CommandReader, Next}
-import praktikum3.Stock.{CommandStock, PrintStock, SaveItems}
+import praktikum3.Stock.{CommandStock, PrintStock}
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors, StashBuffer}
 import akka.actor.typed.{ActorRef, Behavior}
-import akka.persistence.typed.delivery.EventSourcedProducerQueue
-import akka.persistence.typed.PersistenceId
 
 object OrderDispatcher {
 
@@ -17,90 +15,72 @@ object OrderDispatcher {
       context.log.info("Order Dispatcher started")
 
       // Work-Pulling Finance
-      val requestNextAdapter = context.messageAdapter[WorkPullingProducerController.RequestNext[Finance.SaveCustomerAndPrice]](WrappedRequestNext)
+      val requestNextAdapterFinance = context.messageAdapter[WorkPullingProducerController.RequestNext[Finance.SaveCustomerAndPrice]](WrappedRequestNextFinance)
+      val requestNextAdapterStock = context.messageAdapter[WorkPullingProducerController.RequestNext[Stock.SaveItems]](WrappedRequestNextStock)
 
-      val producerController = context.spawn(
+      val producerControllerFinance = context.spawn(
         WorkPullingProducerController(
-          producerId = "workManager",
+          producerId = "workManagerFinance",
           workerServiceKey = Finance.financekey,
           //todo: Some(durableQueue)
           durableQueueBehavior = None),
         "producerController")
 
+      val producerControllerStock = context.spawn(
+        WorkPullingProducerController(
+          producerId = "workManagerStock",
+          workerServiceKey = Stock.stockkey,
+          //todo: Some(durableQueue)
+          durableQueueBehavior = None),
+        "producerController"
+      )
+
       // Start reading and start work-pulling
       actorReader ! Next(context.self)
-      producerController ! WorkPullingProducerController.Start(requestNextAdapter)
-
+      producerControllerFinance ! WorkPullingProducerController.Start(requestNextAdapterFinance)
+      producerControllerStock ! WorkPullingProducerController.Start(requestNextAdapterStock)
 
       Behaviors.withStash(2000) { stashBuffer: StashBuffer[CommandOrderDispatcher] =>
-        new OrderDispatcher(context, stashBuffer, actorReader).waitForNext()
+        new OrderDispatcher(context, stashBuffer, actorReader, actorFinance, actorStock).waitForNext()
       }
-
-      /*Behaviors.receiveMessage {
-        case currentAnswer: NextOrder =>
-          actorReader ! Next(context.self)
-
-          // An Stock Item List weiterreichen
-          val itemQuantities: Map[Int, Int] = currentAnswer.order.items.map(item => (item.id, item.quantity)).toMap
-          actorStock ! SaveItems(itemQuantities)
-
-          Behaviors.same
-
-        case Empty =>
-
-          val actorReplyDumper = context.spawnAnonymous(ReplyDumper())
-
-          //actorStock ! PrintStock(1000000, actorReplyDumper) // answer: unknown
-          //actorStock ! PrintStock(65565, actorReplyDumper) //answer: 608
-
-          actorFinance ! PrintCustomerAndPrice(1000000, actorReplyDumper) // answer: unknown
-          actorFinance ! PrintCustomerAndPrice(19448, actorReplyDumper) // answer: 868923685
-
-          Behaviors.stopped
-
-        case WrappedRequestNext(next) =>
-          context.log.info("Got WrappedRequestNext")
-          Behaviors.same
-
-        case unknownMessage =>
-          context.log.warn(s"Received unknown message in Main Dispatcher reiceive: ${unknownMessage.getClass.getSimpleName}")
-          Behaviors.same
-      }*/
-
     }
   }
 
+  sealed trait CommandOrderDispatcher
 
-sealed trait CommandOrderDispatcher
+  final case class NextOrder(order: Order) extends CommandOrderDispatcher
 
-final case class NextOrder(order: Order) extends CommandOrderDispatcher
+  final case object Empty extends CommandOrderDispatcher
 
-final case object Empty extends CommandOrderDispatcher
-
-private case class WrappedRequestNext(r: WorkPullingProducerController.RequestNext[Finance.SaveCustomerAndPrice]) extends CommandOrderDispatcher
+  private case class WrappedRequestNextFinance(r: WorkPullingProducerController.RequestNext[Finance.SaveCustomerAndPrice]) extends CommandOrderDispatcher
+  private case class WrappedRequestNextStock(r: WorkPullingProducerController.RequestNext[Stock.SaveItems]) extends CommandOrderDispatcher
 
 }
 
 final class OrderDispatcher(context: ActorContext[OrderDispatcher.CommandOrderDispatcher],
                             stashBuffer: StashBuffer[OrderDispatcher.CommandOrderDispatcher],
-                            actorReader: ActorRef[CommandReader]) {
+                            actorReader: ActorRef[CommandReader],
+                            actorFinance: ActorRef[CommandFinance],
+                            actorStock: ActorRef[CommandStock]) {
 
   import OrderDispatcher._
 
   private def waitForNext(): Behavior[CommandOrderDispatcher] = {
 
     Behaviors.receiveMessagePartial {
-      case WrappedRequestNext(next) =>
-        stashBuffer.unstashAll(active(next))
+
+      case WrappedRequestNextFinance(next) =>
+        stashBuffer.unstashAll(activeFinance(next))
+
+      case WrappedRequestNextStock(next) =>
+        stashBuffer.unstashAll(activeStock(next))
 
       case order: NextOrder =>
-        context.log.info("Got NextOrder")
-
         if (stashBuffer.isFull) {
           context.log.warn("Too many Finance/Stock Save Requests.")
           Behaviors.same
+
         } else {
-          context.log.info("MESSAGE WAS STASHED")
           stashBuffer.stash(order)
           Behaviors.same
         }
@@ -111,7 +91,33 @@ final class OrderDispatcher(context: ActorContext[OrderDispatcher.CommandOrderDi
     }
   }
 
-  private def active(next: WorkPullingProducerController.RequestNext[Finance.SaveCustomerAndPrice]): Behavior[CommandOrderDispatcher] = {
+  private def activeFinance(next: WorkPullingProducerController.RequestNext[Finance.SaveCustomerAndPrice]): Behavior[CommandOrderDispatcher] = {
+
+    Behaviors.receiveMessagePartial {
+
+      case NextOrder(order) =>
+        actorReader ! Next(context.self)
+
+        val totalSum: Int = order.items.map(item => item.price).sum
+        next.sendNextTo ! Finance.SaveCustomerAndPrice(order.customer, totalSum)
+
+        waitForNext()
+
+      case Empty =>
+
+        val actorReplyDumper = context.spawnAnonymous(ReplyDumper())
+
+        actorFinance ! PrintCustomerAndPrice(1000000, actorReplyDumper) // answer: unknown
+        actorFinance ! PrintCustomerAndPrice(19448, actorReplyDumper) // answer: 868923685
+
+        Behaviors.stopped
+
+      case unknownMessage =>
+        context.log.warn(s"Received unknown message in active() method: ${unknownMessage.getClass.getSimpleName}")
+        Behaviors.same
+    }
+  }
+  private def activeStock(next: WorkPullingProducerController.RequestNext[Stock.SaveItems]): Behavior[CommandOrderDispatcher] = {
 
     Behaviors.receiveMessagePartial {
 
@@ -119,14 +125,23 @@ final class OrderDispatcher(context: ActorContext[OrderDispatcher.CommandOrderDi
 
         actorReader ! Next(context.self)
 
-        val totalSum: Int = order.items.map(item => item.price).sum
-        next.sendNextTo ! Finance.SaveCustomerAndPrice(order.customer, totalSum)
+        val itemQuantities: Map[Int, Int] = order.items.map(item => (item.id, item.quantity)).toMap
+        next.sendNextTo ! Stock.SaveItems(itemQuantities)
+
         waitForNext()
+
+      case Empty =>
+
+        val actorReplyDumper = context.spawnAnonymous(ReplyDumper())
+
+        actorStock ! PrintStock(1000000, actorReplyDumper) // answer: unknown
+        actorStock ! PrintStock(65565, actorReplyDumper) //answer: 608
+
+        Behaviors.stopped
 
       case unknownMessage =>
         context.log.warn(s"Received unknown message in active() method: ${unknownMessage.getClass.getSimpleName}")
         Behaviors.same
-
     }
   }
 }

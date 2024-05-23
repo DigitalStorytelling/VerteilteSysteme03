@@ -1,10 +1,12 @@
 package praktikum3
 
-import akka.actor.typed.receptionist.ServiceKey
+import akka.actor.typed.receptionist.{Receptionist, ServiceKey}
 import praktikum3.ReplyDumper.{CommandReplyDumper, PrintSumTotalOrdersOfCustomer}
-import akka.actor.typed.{ActorRef, Behavior}
-import akka.actor.typed.scaladsl.Behaviors
+import akka.actor.typed.{ActorRef, Behavior, Signal}
+import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
 import akka.actor.typed.delivery.ConsumerController
+import akka.persistence.typed.state.scaladsl.DurableStateBehavior
+import akka.persistence.typed.PersistenceId
 
 import scala.collection.immutable.HashMap
 
@@ -15,35 +17,28 @@ object Finance {
   def apply(mapCustomer: HashMap[Int, Int] = new HashMap()): Behavior[CommandFinance] = {
     Behaviors.setup { context =>
 
-      context.log.info("Finance started")
-
       val deliveryAdapter =
         context.messageAdapter[ConsumerController.Delivery[SaveCustomerAndPrice]](WrappedDelivery(_))
 
-      val consumerController =
-        context.spawn(ConsumerController(financekey), "consumerController")
-      consumerController ! ConsumerController.Start(deliveryAdapter)
-
+      if(mapCustomer.isEmpty) {
+        val consumerController =
+          context.spawn(ConsumerController(financekey), "consumerController")
+          consumerController ! ConsumerController.Start(deliveryAdapter)
+      }
 
       Behaviors.receiveMessage {
         case WrappedDelivery(delivery) =>
 
-          context.log.info("MESSAGE SAVE RECEIVED IN FINANCE")
-
           val currentSum = mapCustomer.getOrElse(delivery.message.customer.id, 0)
           val updatedCustomer = mapCustomer + (delivery.message.customer.id -> (currentSum + delivery.message.totalPrice))
 
+          //todo: apply after confirm!
+          delivery.confirmTo ! ConsumerController.Confirmed
           apply(updatedCustomer)
 
-          delivery.confirmTo ! ConsumerController.Confirmed
-          Behaviors.same
-
         case currentCustomer: PrintCustomerAndPrice =>
-          context.log.info("MESSAGE PRINT RECEIVED IN FINANCE")
-
 
           currentCustomer.replyTo ! PrintSumTotalOrdersOfCustomer(currentCustomer.id, mapCustomer.get(currentCustomer.id))
-
           Behaviors.same
 
         case unknownMessage =>
@@ -56,20 +51,9 @@ object Finance {
   sealed trait CommandFinance
 
   case class SaveCustomerAndPrice(customer: Customer, totalPrice: Int) extends CommandFinance
+
   case class PrintCustomerAndPrice(id: Int, replyTo: ActorRef[CommandReplyDumper]) extends CommandFinance
 
   //todo:
   case class WrappedDelivery(d: ConsumerController.Delivery[SaveCustomerAndPrice]) extends CommandFinance
 }
-
-/*case currentOrder: SaveCustomerAndPrice =>
-
-       val currentSum = mapCustomer.getOrElse(currentOrder.customer.id, 0)
-       val updatedCustomer = mapCustomer + (currentOrder.customer.id -> (currentSum + currentOrder.totalPrice))
-
-       apply(updatedCustomer)
-
-       // Confirm message delivery after processing
-        currentOrder.confirmTo ! ConsumerController.Confirmed
-
-     // delivery.confirmTo ! ConsumerController.Confirmed*/

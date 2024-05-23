@@ -10,6 +10,7 @@ lazy val root = (project in file("."))
 libraryDependencies += "com.typesafe.akka" %% "akka-actor-typed" % "2.8.5"
 libraryDependencies += "ch.qos.logback" % "logback-classic" % "1.5.3"
 libraryDependencies += "com.typesafe.akka" %% "akka-cluster" % "2.8.5"
+libraryDependencies += "com.typesafe.akka" %% "akka-persistence-typed" % "2.8.5"
 
 val circeVersion = "0.15.0-M1"
 libraryDependencies ++= Seq(

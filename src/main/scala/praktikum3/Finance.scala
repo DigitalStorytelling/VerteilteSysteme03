@@ -15,6 +15,8 @@ object Finance {
   def apply(mapCustomer: HashMap[Int, Int] = new HashMap()): Behavior[CommandFinance] = {
     Behaviors.setup { context =>
 
+      context.log.info("Finance started")
+
       val deliveryAdapter =
         context.messageAdapter[ConsumerController.Delivery[SaveCustomerAndPrice]](WrappedDelivery(_))
 
@@ -26,6 +28,8 @@ object Finance {
       Behaviors.receiveMessage {
         case WrappedDelivery(delivery) =>
 
+          context.log.info("MESSAGE SAVE RECEIVED IN FINANCE")
+
           val currentSum = mapCustomer.getOrElse(delivery.message.customer.id, 0)
           val updatedCustomer = mapCustomer + (delivery.message.customer.id -> (currentSum + delivery.message.totalPrice))
 
@@ -35,9 +39,15 @@ object Finance {
           Behaviors.same
 
         case currentCustomer: PrintCustomerAndPrice =>
+          context.log.info("MESSAGE PRINT RECEIVED IN FINANCE")
+
 
           currentCustomer.replyTo ! PrintSumTotalOrdersOfCustomer(currentCustomer.id, mapCustomer.get(currentCustomer.id))
 
+          Behaviors.same
+
+        case unknownMessage =>
+          context.log.warn(s"Received unknown message in FINANCE: ${unknownMessage.getClass.getSimpleName}")
           Behaviors.same
       }
     }

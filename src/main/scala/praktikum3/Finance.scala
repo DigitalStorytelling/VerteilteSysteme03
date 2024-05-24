@@ -2,11 +2,9 @@ package praktikum3
 
 import akka.actor.typed.receptionist.{Receptionist, ServiceKey}
 import praktikum3.ReplyDumper.{CommandReplyDumper, PrintSumTotalOrdersOfCustomer}
-import akka.actor.typed.{ActorRef, Behavior, Signal}
-import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
+import akka.actor.typed.{ActorRef, Behavior}
+import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.delivery.ConsumerController
-import akka.persistence.typed.state.scaladsl.DurableStateBehavior
-import akka.persistence.typed.PersistenceId
 
 import scala.collection.immutable.HashMap
 
@@ -24,7 +22,7 @@ object Finance {
 
       if(mapCustomer.isEmpty) {
         val consumerController =
-          context.spawn(ConsumerController(financekey), "consumerController")
+          context.spawn(ConsumerController(financekey), "consumerControllerFinance")
           consumerController ! ConsumerController.Start(deliveryAdapter)
       }
 
@@ -43,9 +41,6 @@ object Finance {
           currentCustomer.replyTo ! PrintSumTotalOrdersOfCustomer(currentCustomer.id, mapCustomer.get(currentCustomer.id))
           Behaviors.same
 
-        case unknownMessage =>
-          context.log.warn(s"Received unknown message in FINANCE: ${unknownMessage.getClass.getSimpleName}")
-          Behaviors.same
       }
     }
   }

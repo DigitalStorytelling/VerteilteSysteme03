@@ -21,7 +21,7 @@ object Stock {
 
       if (mapStock.isEmpty) {
         val consumerController =
-          context.spawn(ConsumerController(stockkey), "consumerController")
+          context.spawn(ConsumerController(stockkey), "consumerControllerStock")
           consumerController ! ConsumerController.Start(deliveryAdapter)
       }
 
@@ -40,10 +40,6 @@ object Stock {
         case currentItem: PrintStock =>
           currentItem.replyTo ! PrintTotalStockOfItem(currentItem.id, mapStock.get(currentItem.id))
           Behaviors.same
-
-        case unknownMessage =>
-          context.log.warn(s"Received unknown message in STOCK: ${unknownMessage.getClass.getSimpleName}")
-          Behaviors.same
       }
     }
   }
@@ -51,6 +47,5 @@ object Stock {
   sealed trait CommandStock
   case class SaveItems(item: Map[Int, Int]) extends CommandStock
   case class PrintStock(id: Int, replyTo: ActorRef[CommandReplyDumper]) extends CommandStock
-
   case class WrappedDelivery(d: ConsumerController.Delivery[SaveItems]) extends CommandStock
 }

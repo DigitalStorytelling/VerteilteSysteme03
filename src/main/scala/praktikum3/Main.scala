@@ -1,7 +1,6 @@
 package praktikum3
 
 import akka.actor.typed.ActorSystem
-
 import scala.io.StdIn
 
 object Main {

@@ -1,20 +1,25 @@
 package praktikum3
 
 import akka.actor.typed.delivery.ConsumerController
-import akka.actor.typed.receptionist.ServiceKey
+import akka.actor.typed.receptionist.{Receptionist, ServiceKey}
 import praktikum3.ReplyDumper.{CommandReplyDumper, PrintTotalStockOfItem}
 import akka.actor.typed.{ActorRef, Behavior}
 import akka.actor.typed.scaladsl.Behaviors
+
 import scala.collection.immutable.HashMap
 
 object Stock {
 
   val stockkey = ServiceKey[ConsumerController.Command[SaveItems]]("Stock")
 
+  val StockGuardianKey: ServiceKey[CommandStock] = ServiceKey[CommandStock]("StockGuardian")
+
+
   def apply(mapStock: HashMap[Int, Int] = new HashMap()): Behavior[CommandStock] = {
     Behaviors.setup { (context) =>
 
       context.log.info("Stock")
+      context.system.receptionist ! Receptionist.Register(StockGuardianKey, context.self)
 
       val deliveryAdapter =
         context.messageAdapter[ConsumerController.Delivery[SaveItems]](WrappedDelivery(_))

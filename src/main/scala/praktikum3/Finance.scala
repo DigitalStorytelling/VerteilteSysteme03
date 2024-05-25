@@ -12,10 +12,13 @@ object Finance {
 
   val financekey = ServiceKey[ConsumerController.Command[SaveCustomerAndPrice]]("Finance")
 
+  val FinanceGuardianKey: ServiceKey[CommandFinance] = ServiceKey[CommandFinance]("FinanceGuardian")
+
   def apply(mapCustomer: HashMap[Int, Int] = new HashMap()): Behavior[CommandFinance] = {
     Behaviors.setup { context =>
 
       context.log.info("Finance")
+      context.system.receptionist ! Receptionist.Register(FinanceGuardianKey, context.self)
 
       val deliveryAdapter =
         context.messageAdapter[ConsumerController.Delivery[SaveCustomerAndPrice]](WrappedDelivery(_))

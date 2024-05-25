@@ -9,15 +9,7 @@ import akka.actor.typed.scaladsl.Behaviors
 
 object Guardian {
 
-  // todo change!!!!!!!
-  private var actorFinance: ActorRef[CommandFinance] = null
-  private var actorStock: ActorRef[CommandStock] = null
-
-  private lazy val actorF: ActorRef[CommandFinance]
-  // todo !!!!!!
-
-  // def apply(actorStock: ActorRef[CommandStock] = null, actorFinance: ActorRef[CommandFinance] = null): Behavior[Nothing]
-  def apply(): Behavior[Nothing] =
+  def apply(actorStock: ActorRef[CommandStock] = null, actorFinance: ActorRef[CommandFinance] = null, guardianUpOnlyOnce: Boolean = true): Behavior[Receptionist.Listing] =
     Behaviors.setup[Receptionist.Listing] { context =>
 
       val role = System.getenv("role")
@@ -46,16 +38,17 @@ object Guardian {
 
         case Finance.FinanceGuardianKey.Listing(financeListings) if financeListings.nonEmpty =>
           context.log.info("Finance available")
-          //todo: var ändern!
-          actorFinance = financeListings.head
 
-
-          if (actorStock != null) {
+          if(actorStock != null){
             val actorReader = context.spawnAnonymous(Reader())
-            context.spawnAnonymous(OrderDispatcher(actorReader, actorFinance, actorStock))
+            context.log.info("Start Reader")
+            context.spawnAnonymous(OrderDispatcher(actorReader, financeListings.head, actorStock))
+            Behaviors.same
+          } else if (guardianUpOnlyOnce) {
+            apply(actorStock, financeListings.head, guardianUpOnlyOnce = false)
+          } else {
+            Behaviors.same
           }
-
-          Behaviors.same
 
         case Finance.FinanceGuardianKey.Listing(financeListings) if financeListings.isEmpty =>
           context.log.info("No Finance available")
@@ -63,15 +56,17 @@ object Guardian {
 
         case Stock.StockGuardianKey.Listing(stockListings) if stockListings.nonEmpty =>
           context.log.info("Stock available")
-          //todo: var ändern!
-          actorStock = stockListings.head
 
-          if (actorFinance != null) {
+          if(actorFinance != null) {
             val actorReader = context.spawnAnonymous(Reader())
-            context.spawnAnonymous(OrderDispatcher(actorReader, actorFinance, actorStock))
+            context.log.info("Start Reader")
+            context.spawnAnonymous(OrderDispatcher(actorReader, actorFinance, stockListings.head))
+            Behaviors.same
+          } else if (guardianUpOnlyOnce) {
+            apply(stockListings.head, actorFinance, guardianUpOnlyOnce = false)
+          } else {
+            Behaviors.same
           }
-
-          Behaviors.same
 
         case Stock.StockGuardianKey.Listing(stockListings) if stockListings.isEmpty =>
           context.log.info("No Stock available")

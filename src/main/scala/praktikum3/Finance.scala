@@ -8,7 +8,7 @@ import akka.actor.typed.delivery.ConsumerController
 
 import scala.collection.immutable.HashMap
 
-object Finance {
+object Finance  {
 
   val financekey = ServiceKey[ConsumerController.Command[SaveCustomerAndPrice]]("Finance")
 

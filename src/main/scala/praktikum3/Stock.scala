@@ -8,7 +8,7 @@ import akka.actor.typed.scaladsl.Behaviors
 
 import scala.collection.immutable.HashMap
 
-object Stock {
+object Stock  {
 
   val stockkey = ServiceKey[ConsumerController.Command[SaveItems]]("Stock")
 

@@ -1,12 +1,10 @@
 package praktikum3
 
-import praktikum3.Finance.CommandFinance
-import praktikum3.Stock.{CommandStock, StockGuardianKey}
-import akka.actor.typed.ActorRef
-import akka.actor.typed.Behavior
+import akka.actor.typed.{ActorRef, Behavior}
 import akka.actor.typed.receptionist.Receptionist
-import akka.actor.typed.scaladsl.Behaviors
-import praktikum3.Reader.CommandReader
+import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
+import praktikum3.Finance.CommandFinance
+import praktikum3.Stock.CommandStock
 
 object Guardian {
   def apply(actorStock: ActorRef[CommandStock] = null, actorFinance: ActorRef[CommandFinance] = null, guardianUpOnlyOnce: Boolean = true, readerUp:Boolean = false): Behavior[Receptionist.Listing] =
@@ -40,16 +38,7 @@ object Guardian {
         case Finance.FinanceGuardianKey.Listing(financeListings) if financeListings.nonEmpty =>
           context.log.info("Finance available")
 
-          if(actorStock != null && !readerUp ){
-            val actorReader = context.spawnAnonymous(Reader())
-            context.log.info("Start Reader")
-            context.spawnAnonymous(OrderDispatcher(actorReader, financeListings.head, actorStock))
-            apply(actorStock, financeListings.head, guardianUpOnlyOnce = false, readerUp = true)
-          } else if (guardianUpOnlyOnce) {
-            apply(actorStock, financeListings.head, guardianUpOnlyOnce = false)
-          } else {
-            Behaviors.same
-          }
+          checkStartReader(context, actorStock, financeListings.head, guardianUpOnlyOnce, readerUp)
 
         case Finance.FinanceGuardianKey.Listing(financeListings) if financeListings.isEmpty =>
           context.log.info("No Finance available")
@@ -58,16 +47,7 @@ object Guardian {
         case Stock.StockGuardianKey.Listing(stockListings) if stockListings.nonEmpty =>
           context.log.info("Stock available")
 
-          if(actorFinance != null && !readerUp) {
-            val actorReader = context.spawnAnonymous(Reader())
-            context.log.info("Start Reader")
-            context.spawnAnonymous(OrderDispatcher(actorReader, actorFinance, stockListings.head))
-            apply(stockListings.head, actorFinance, guardianUpOnlyOnce = false, readerUp = true)
-          } else if (guardianUpOnlyOnce) {
-            apply(stockListings.head, actorFinance, guardianUpOnlyOnce = false)
-          } else {
-            Behaviors.same
-          }
+          checkStartReader(context, stockListings.head, actorFinance, guardianUpOnlyOnce, readerUp)
 
         case Stock.StockGuardianKey.Listing(stockListings) if stockListings.isEmpty =>
           context.log.info("No Stock available")
@@ -76,7 +56,19 @@ object Guardian {
 
     }.narrow
 
-  def startReader(stockActor: ActorRef[CommandStock], financeActor: ActorRef[CommandFinance]): Behavior[CommandReader]{
+  def checkStartReader(context:  ActorContext[Receptionist.Listing], stockActor: ActorRef[CommandStock], financeActor: ActorRef[CommandFinance], guardianUpOnlyOnce:Boolean, readerUp:Boolean): Behavior[Receptionist.Listing] = {
+
+    if(stockActor != null && financeActor != null && !readerUp) {
+      val actorReader = context.spawnAnonymous(Reader())
+      context.log.info("Start Reader")
+      context.spawnAnonymous(OrderDispatcher(actorReader, financeActor, stockActor))
+      apply(stockActor, financeActor, guardianUpOnlyOnce = false, readerUp = true)
+    } else if (guardianUpOnlyOnce){
+      // only Finance or Stock is found. Needs another run to have both
+      apply(stockActor, financeActor, guardianUpOnlyOnce = false)
+    }  else {
+      Behaviors.same
+    }
 
   }
 }

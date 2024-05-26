@@ -13,14 +13,6 @@ object OrderDispatcher {
 
       context.log.info("Order Dispatcher started")
 
-      val producerControllerFinance = context.spawn(
-        WorkPullingProducerController(
-          producerId = "workManagerFinance",
-          workerServiceKey = Finance.financekey,
-          //todo: Some(durableQueue)
-          durableQueueBehavior = None),
-        "producerControllerFinance")
-
       val producerControllerStock = context.spawn(
         WorkPullingProducerController(
           producerId = "workManagerStock",
@@ -30,12 +22,21 @@ object OrderDispatcher {
         "producerControllerStock"
       )
 
-      val requestNextAdapterFinance = context.messageAdapter[WorkPullingProducerController.RequestNext[Finance.SaveCustomerAndPrice]](WrappedRequestNextFinance)
+      val producerControllerFinance = context.spawn(
+        WorkPullingProducerController(
+          producerId = "workManagerFinance",
+          workerServiceKey = Finance.financekey,
+          //todo: Some(durableQueue)
+          durableQueueBehavior = None),
+        "producerControllerFinance")
+
       val requestNextAdapterStock = context.messageAdapter[WorkPullingProducerController.RequestNext[Stock.SaveItems]](WrappedRequestNextStock)
+      val requestNextAdapterFinance = context.messageAdapter[WorkPullingProducerController.RequestNext[Finance.SaveCustomerAndPrice]](WrappedRequestNextFinance)
 
       // Start work-pulling
+      //producerControllerStock ! WorkPullingProducerController.Start(requestNextAdapterStock)
       producerControllerFinance ! WorkPullingProducerController.Start(requestNextAdapterFinance)
-      producerControllerStock ! WorkPullingProducerController.Start(requestNextAdapterStock)
+
 
       // Start reading and start work-pulling
       actorReader ! Next(context.self)
@@ -43,17 +44,15 @@ object OrderDispatcher {
       Behaviors.withStash(2000) { stashBuffer: StashBuffer[CommandOrderDispatcher] =>
         new OrderDispatcher(context, stashBuffer, actorReader, actorFinance, actorStock).waitForNext()
       }
+
     }
   }
 
   sealed trait CommandOrderDispatcher
 
   final case class NextOrder(order: Order) extends CommandOrderDispatcher
-
   final case object Empty extends CommandOrderDispatcher
-
   private case class WrappedRequestNextFinance(r: WorkPullingProducerController.RequestNext[Finance.SaveCustomerAndPrice]) extends CommandOrderDispatcher
-
   private case class WrappedRequestNextStock(r: WorkPullingProducerController.RequestNext[Stock.SaveItems]) extends CommandOrderDispatcher
 
 }
@@ -85,9 +84,9 @@ final class OrderDispatcher(context: ActorContext[OrderDispatcher.CommandOrderDi
           stashBuffer.stash(order)
           Behaviors.same
         }
-      case unknownMessage =>
-        context.log.warn(s"Received unknown message in waitNext() method: ${unknownMessage.getClass.getSimpleName}")
-        Behaviors.same
+      /*case unknownMessage =>
+        context.log.warn(s"Received unknown message in waitNextStock() method: ${unknownMessage.getClass.getSimpleName}")
+        Behaviors.same*/
     }
   }
 
@@ -106,10 +105,6 @@ final class OrderDispatcher(context: ActorContext[OrderDispatcher.CommandOrderDi
         actorFinance ! PrintCustomerAndPrice(19448, actorReplyDumper) // answer: 868923685
 
         Behaviors.same
-
-      case unknownMessage =>
-        context.log.warn(s"Received unknown message in financeStock() method: ${unknownMessage.getClass.getSimpleName}")
-        waitForNext()
     }
   }
 
@@ -127,12 +122,6 @@ final class OrderDispatcher(context: ActorContext[OrderDispatcher.CommandOrderDi
 
         Behaviors.same
 
-      case _: WrappedRequestNextStock =>
-        throw new IllegalStateException("Unexpected RequestNextStock")
-
-      case unknownMessage =>
-        context.log.warn(s"Received unknown message in activeStock() method: ${unknownMessage.getClass.getSimpleName}")
-        waitForNext()
     }
   }
 }

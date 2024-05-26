@@ -11,18 +11,16 @@ import scala.collection.immutable.HashMap
 object Stock  {
 
   val stockkey = ServiceKey[ConsumerController.Command[SaveItems]]("Stock")
-
-  val StockGuardianKey: ServiceKey[CommandStock] = ServiceKey[CommandStock]("StockGuardian")
-
+  val stockGuardianKey: ServiceKey[CommandStock] = ServiceKey[CommandStock]("StockGuardian")
 
   def apply(mapStock: HashMap[Int, Int] = new HashMap()): Behavior[CommandStock] = {
-    Behaviors.setup { (context) =>
+    Behaviors.setup { context =>
 
       context.log.info("Stock")
-      context.system.receptionist ! Receptionist.Register(StockGuardianKey, context.self)
+      context.system.receptionist ! Receptionist.Register(stockGuardianKey, context.self)
 
       val deliveryAdapter =
-        context.messageAdapter[ConsumerController.Delivery[SaveItems]](WrappedDelivery(_))
+        context.messageAdapter[ConsumerController.Delivery[SaveItems]](WrappedSaveItem(_))
 
       if (mapStock.isEmpty) {
         val consumerController =
@@ -31,9 +29,9 @@ object Stock  {
       }
 
       Behaviors.receiveMessage {
-        case WrappedDelivery(delivery) =>
+        case WrappedSaveItem(delivery) =>
 
-          // todo: is right but check logic
+          // foldLeft goes sequentially over items and changes only the one with the current key or creates it
           val updatedMapStock: HashMap[Int, Int] = delivery.message.item.foldLeft(mapStock) { (map, item) =>
             val (itemId, quantity) = item
             map + (itemId -> (map.getOrElse(itemId, 0) + quantity))
@@ -52,5 +50,5 @@ object Stock  {
   sealed trait CommandStock
   case class SaveItems(item: Map[Int, Int]) extends CommandStock
   case class PrintStock(id: Int, replyTo: ActorRef[CommandReplyDumper]) extends CommandStock
-  case class WrappedDelivery(d: ConsumerController.Delivery[SaveItems]) extends CommandStock
+  case class WrappedSaveItem(d: ConsumerController.Delivery[SaveItems]) extends CommandStock
 }

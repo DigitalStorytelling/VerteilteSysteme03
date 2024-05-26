@@ -12,16 +12,16 @@ object Finance  {
 
   val financekey = ServiceKey[ConsumerController.Command[SaveCustomerAndPrice]]("Finance")
 
-  val FinanceGuardianKey: ServiceKey[CommandFinance] = ServiceKey[CommandFinance]("FinanceGuardian")
+  val financeGuardianKey: ServiceKey[CommandFinance] = ServiceKey[CommandFinance]("FinanceGuardian")
 
   def apply(mapCustomer: HashMap[Int, Int] = new HashMap()): Behavior[CommandFinance] = {
     Behaviors.setup { context =>
 
       context.log.info("Finance")
-      context.system.receptionist ! Receptionist.Register(FinanceGuardianKey, context.self)
+      context.system.receptionist ! Receptionist.Register(financeGuardianKey, context.self)
 
       val deliveryAdapter =
-        context.messageAdapter[ConsumerController.Delivery[SaveCustomerAndPrice]](WrappedDelivery(_))
+        context.messageAdapter[ConsumerController.Delivery[SaveCustomerAndPrice]](WrappedSaveCustomerAndPrice(_))
 
       if(mapCustomer.isEmpty) {
         val consumerController =
@@ -30,12 +30,11 @@ object Finance  {
       }
 
       Behaviors.receiveMessage {
-        case WrappedDelivery(delivery) =>
+        case WrappedSaveCustomerAndPrice(delivery) =>
 
           val currentSum = mapCustomer.getOrElse(delivery.message.customer.id, 0)
           val updatedCustomer = mapCustomer + (delivery.message.customer.id -> (currentSum + delivery.message.totalPrice))
 
-          //todo: apply after confirm!
           delivery.confirmTo ! ConsumerController.Confirmed
           apply(updatedCustomer)
 
@@ -49,11 +48,7 @@ object Finance  {
   }
 
   sealed trait CommandFinance
-
   case class SaveCustomerAndPrice(customer: Customer, totalPrice: Int) extends CommandFinance
-
   case class PrintCustomerAndPrice(id: Int, replyTo: ActorRef[CommandReplyDumper]) extends CommandFinance
-
-  //todo:
-  case class WrappedDelivery(d: ConsumerController.Delivery[SaveCustomerAndPrice]) extends CommandFinance
+  case class WrappedSaveCustomerAndPrice(d: ConsumerController.Delivery[SaveCustomerAndPrice]) extends CommandFinance
 }

@@ -43,5 +43,4 @@ object ReplyDumper {
   // Balance is either "unknown" or an Integer
   case class PrintSumTotalOrdersOfCustomer(id: Int, balance: Option[Int]) extends CommandReplyDumper
   case class PrintTotalStockOfItem(id: Int, stock: Option[Int]) extends CommandReplyDumper
-
 }

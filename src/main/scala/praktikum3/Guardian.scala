@@ -1,19 +1,20 @@
 package praktikum3
 
 import praktikum3.Finance.CommandFinance
-import praktikum3.Stock.CommandStock
+import praktikum3.Stock.{CommandStock, StockGuardianKey}
 import akka.actor.typed.ActorRef
 import akka.actor.typed.Behavior
 import akka.actor.typed.receptionist.Receptionist
 import akka.actor.typed.scaladsl.Behaviors
+import praktikum3.Reader.CommandReader
 
 object Guardian {
-
-  def apply(actorStock: ActorRef[CommandStock] = null, actorFinance: ActorRef[CommandFinance] = null, guardianUpOnlyOnce: Boolean = true): Behavior[Receptionist.Listing] =
+  def apply(actorStock: ActorRef[CommandStock] = null, actorFinance: ActorRef[CommandFinance] = null, guardianUpOnlyOnce: Boolean = true, readerUp:Boolean = false): Behavior[Receptionist.Listing] =
     Behaviors.setup[Receptionist.Listing] { context =>
 
       val role = System.getenv("role")
       context.log.info(s"Guardian started as $role.")
+
 
       role match {
         case "dispatcher" =>
@@ -39,11 +40,11 @@ object Guardian {
         case Finance.FinanceGuardianKey.Listing(financeListings) if financeListings.nonEmpty =>
           context.log.info("Finance available")
 
-          if(actorStock != null){
+          if(actorStock != null && !readerUp ){
             val actorReader = context.spawnAnonymous(Reader())
             context.log.info("Start Reader")
             context.spawnAnonymous(OrderDispatcher(actorReader, financeListings.head, actorStock))
-            Behaviors.same
+            apply(actorStock, financeListings.head, guardianUpOnlyOnce = false, readerUp = true)
           } else if (guardianUpOnlyOnce) {
             apply(actorStock, financeListings.head, guardianUpOnlyOnce = false)
           } else {
@@ -57,11 +58,11 @@ object Guardian {
         case Stock.StockGuardianKey.Listing(stockListings) if stockListings.nonEmpty =>
           context.log.info("Stock available")
 
-          if(actorFinance != null) {
+          if(actorFinance != null && !readerUp) {
             val actorReader = context.spawnAnonymous(Reader())
             context.log.info("Start Reader")
             context.spawnAnonymous(OrderDispatcher(actorReader, actorFinance, stockListings.head))
-            Behaviors.same
+            apply(stockListings.head, actorFinance, guardianUpOnlyOnce = false, readerUp = true)
           } else if (guardianUpOnlyOnce) {
             apply(stockListings.head, actorFinance, guardianUpOnlyOnce = false)
           } else {
@@ -74,4 +75,8 @@ object Guardian {
       }
 
     }.narrow
+
+  def startReader(stockActor: ActorRef[CommandStock], financeActor: ActorRef[CommandFinance]): Behavior[CommandReader]{
+
+  }
 }

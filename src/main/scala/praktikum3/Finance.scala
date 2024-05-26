@@ -18,12 +18,13 @@ object Finance  {
     Behaviors.setup { context =>
 
       context.log.info("Finance")
-      context.system.receptionist ! Receptionist.Register(financeGuardianKey, context.self)
 
       val deliveryAdapter =
         context.messageAdapter[ConsumerController.Delivery[SaveCustomerAndPrice]](WrappedSaveCustomerAndPrice(_))
 
       if(mapCustomer.isEmpty) {
+        context.system.receptionist ! Receptionist.Register(financeGuardianKey, context.self)
+
         val consumerController =
           context.spawn(ConsumerController(financekey), "consumerControllerFinance")
           consumerController ! ConsumerController.Start(deliveryAdapter)

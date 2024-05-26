@@ -17,12 +17,13 @@ object Stock  {
     Behaviors.setup { context =>
 
       context.log.info("Stock")
-      context.system.receptionist ! Receptionist.Register(stockGuardianKey, context.self)
 
       val deliveryAdapter =
         context.messageAdapter[ConsumerController.Delivery[SaveItems]](WrappedSaveItem(_))
 
       if (mapStock.isEmpty) {
+        context.system.receptionist ! Receptionist.Register(stockGuardianKey, context.self)
+
         val consumerController =
           context.spawn(ConsumerController(stockkey), "consumerControllerStock")
           consumerController ! ConsumerController.Start(deliveryAdapter)

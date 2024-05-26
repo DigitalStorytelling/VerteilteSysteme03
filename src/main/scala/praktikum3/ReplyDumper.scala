@@ -12,19 +12,17 @@ object ReplyDumper {
       Behaviors.same
 
       Behaviors.receiveMessage{
-        // Finance
-        case customer: PrintSumTotalOrdersOfCustomer =>
+        case finance: PrintSumTotalOrdersOfCustomer =>
 
-          val result = customer.balance match {
+          val result = finance.balance match {
             case Some(id) => id
             case None => "unknown"
           }
 
-          context.log.info(s"Balance of customer ${customer.id} is ${result}")
+          context.log.info(s"Balance of customer ${finance.id} is ${result}")
 
           Behaviors.same
 
-        //Stock
         case stock: PrintTotalStockOfItem =>
 
           val result = stock.stock match {
@@ -40,7 +38,6 @@ object ReplyDumper {
   }
 
   sealed trait CommandReplyDumper
-  // Balance is either "unknown" or an Integer
   case class PrintSumTotalOrdersOfCustomer(id: Int, balance: Option[Int]) extends CommandReplyDumper
   case class PrintTotalStockOfItem(id: Int, stock: Option[Int]) extends CommandReplyDumper
 }

@@ -54,7 +54,7 @@ object Guardian {
 
     }.narrow
 
-  // will make the Guardian start 3 times (because of apply and giving information to the next)
+  // will make the Guardian start 3 times (first = get Stock/Finacne, second= get other Stock/Finance, third= mark that reader is up to avoid reader starting two times)
   // will start the reader and replyDumper only once!
   def checkStartReader(context: ActorContext[Receptionist.Listing], stockActor: ActorRef[CommandStock], financeActor: ActorRef[CommandFinance], guardianUpOnlyOnce: Boolean, readerUp: Boolean): Behavior[Receptionist.Listing] = {
 
@@ -66,10 +66,10 @@ object Guardian {
       apply(stockActor, financeActor, guardianUpOnlyOnce = false, readerUp = true)
 
       // only Finance or Stock is found. Needs another run to have both
+      // cant ask finance != null && Stock == null because this could trigger it more than once (always find stock first)
       // cant use readerUp here
     } else if (guardianUpOnlyOnce) {
       apply(stockActor, financeActor, guardianUpOnlyOnce = false)
-
     } else {
       Behaviors.same
     }

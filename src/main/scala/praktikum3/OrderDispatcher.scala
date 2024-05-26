@@ -6,7 +6,6 @@ import praktikum3.Reader.{CommandReader, Next}
 import praktikum3.Stock.{CommandStock, PrintStock}
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors, StashBuffer}
 import akka.actor.typed.{ActorRef, Behavior}
-
 object OrderDispatcher {
   def apply(actorReader: ActorRef[CommandReader], actorFinance: ActorRef[CommandFinance], actorStock: ActorRef[CommandStock]): Behavior[CommandOrderDispatcher] = {
     Behaviors.setup { context =>
@@ -17,7 +16,6 @@ object OrderDispatcher {
         WorkPullingProducerController(
           producerId = "workManagerStock",
           workerServiceKey = Stock.stockkey,
-          //todo: Some(durableQueue)
           durableQueueBehavior = None),
         "producerControllerStock"
       )
@@ -26,30 +24,28 @@ object OrderDispatcher {
         WorkPullingProducerController(
           producerId = "workManagerFinance",
           workerServiceKey = Finance.financekey,
-          //todo: Some(durableQueue)
           durableQueueBehavior = None),
         "producerControllerFinance")
 
       val requestNextAdapterStock = context.messageAdapter[WorkPullingProducerController.RequestNext[Stock.SaveItems]](WrappedRequestNextStock)
       val requestNextAdapterFinance = context.messageAdapter[WorkPullingProducerController.RequestNext[Finance.SaveCustomerAndPrice]](WrappedRequestNextFinance)
 
-      // Start work-pulling
+      // Start work-pulling | Auskommentiert Stock
       //producerControllerStock ! WorkPullingProducerController.Start(requestNextAdapterStock)
       producerControllerFinance ! WorkPullingProducerController.Start(requestNextAdapterFinance)
-
 
       // Start reading and start work-pulling
       actorReader ! Next(context.self)
 
-      Behaviors.withStash(2000) { stashBuffer: StashBuffer[CommandOrderDispatcher] =>
-        new OrderDispatcher(context, stashBuffer, actorReader, actorFinance, actorStock).waitForNext()
-      }
+      Behaviors.same
 
+      Behaviors.withStash(2000) { stashBuffer: StashBuffer[CommandOrderDispatcher] =>
+         new OrderDispatcher(context, stashBuffer, actorReader, actorFinance, actorStock).waitForNext()
+       }
     }
   }
 
   sealed trait CommandOrderDispatcher
-
   final case class NextOrder(order: Order) extends CommandOrderDispatcher
   final case object Empty extends CommandOrderDispatcher
   private case class WrappedRequestNextFinance(r: WorkPullingProducerController.RequestNext[Finance.SaveCustomerAndPrice]) extends CommandOrderDispatcher
@@ -84,9 +80,6 @@ final class OrderDispatcher(context: ActorContext[OrderDispatcher.CommandOrderDi
           stashBuffer.stash(order)
           Behaviors.same
         }
-      /*case unknownMessage =>
-        context.log.warn(s"Received unknown message in waitNextStock() method: ${unknownMessage.getClass.getSimpleName}")
-        Behaviors.same*/
     }
   }
 
@@ -121,7 +114,6 @@ final class OrderDispatcher(context: ActorContext[OrderDispatcher.CommandOrderDi
         actorStock ! PrintStock(65565, actorReplyDumper) // answer: 608
 
         Behaviors.same
-
     }
   }
 }

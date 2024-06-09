@@ -10,7 +10,7 @@ import org.agrona.concurrent.status.CountersReader.CounterConsumer
 object GuardianCounter{
   def apply(): Behavior[GuardianCommand] = {
 
-    Behaviors.setup[StatusReply[Done]] { context =>
+    Behaviors.setup[GuardianCommand] { context =>
       context.log.info("Guardian started")
 
       val counter = context.spawn(Counter(0), "Counter")
@@ -22,11 +22,11 @@ object GuardianCounter{
       counter ! IncreaseCommand(context.self)
       counter ! IncreaseCommand(context.self)
 
-      /*Behaviors.receiveMessage{
+      Behaviors.receiveMessage{
         case currentNumber: Print =>
           context.log.info(s"Counter: ${currentNumber.counter}")
           Behaviors.same
-      }*/
+      }
     }
   }
   trait GuardianCommand

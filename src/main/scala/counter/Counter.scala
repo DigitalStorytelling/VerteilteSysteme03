@@ -33,8 +33,6 @@ object Counter {
   val eventHandlerCounter: (State, Event) => State = { (state, event) =>
     event match {
       case IncreaseCounterEvent() => {
-        //todo:
-        println("Counter is " + state)
         state.copy(state.counter + 1)
       }
     }
@@ -45,17 +43,13 @@ object Counter {
       command match {
         case IncreaseCommand(replyTo) =>
           Effect.persist(IncreaseCounterEvent())
-            .thenReply(replyTo) { _ =>
-              StatusReply.Ack
-            }
+            .thenReply(replyTo)(s => Print(state.counter))
       }
   }
 
   sealed trait CounterCommand
-  case class IncreaseCommand(replyTo: ActorRef[StatusReply[Done]]) extends CounterCommand
-
+  case class IncreaseCommand(replyTo: ActorRef[GuardianCommand]) extends CounterCommand
 
   sealed trait Event
   final case class IncreaseCounterEvent() extends Event
-
 }

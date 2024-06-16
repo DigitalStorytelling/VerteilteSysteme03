@@ -40,7 +40,7 @@ object Finance {
             eventHandler = eventHandlerFinance
           )
         .withRetention(
-          RetentionCriteria.snapshotEvery(numberOfEvents = 1, keepNSnapshots = 5)
+          RetentionCriteria.snapshotEvery(numberOfEvents = 100, keepNSnapshots = 2)
         )
     }
 
@@ -69,7 +69,7 @@ object Finance {
       }
   }
 
-  final case class State(@JsonDeserialize(contentAs = classOf[Int], keyAs = classOf[Int]) mapCustomer: HashMap[Int, Int])
+  final case class State(@JsonDeserialize(keyAs = classOf[Int]) mapCustomer: HashMap[Int, Int])
   sealed trait CommandFinance
   case class SaveCustomerAndPrice(customer: Customer, totalPrice: Int) extends CommandFinance
   case class PrintCustomerAndPrice(id: Int, replyTo: ActorRef[CommandReplyDumper]) extends CommandFinance

@@ -1,11 +1,8 @@
 package counter
 
-import akka.Done
-import akka.actor.typed.{Behavior, scaladsl}
+import akka.actor.typed.{Behavior}
 import akka.actor.typed.scaladsl.Behaviors
-import akka.pattern.StatusReply
-import counter.Counter.{CounterCommand, IncreaseCommand}
-import org.agrona.concurrent.status.CountersReader.CounterConsumer
+import counter.Counter.{IncreaseCommand}
 
 object GuardianCounter{
   def apply(): Behavior[GuardianCommand] = {

@@ -1,11 +1,9 @@
 package counter
 
-import akka.Done
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorRef, Behavior}
-import akka.pattern.StatusReply
 import akka.persistence.typed.PersistenceId
-import akka.persistence.typed.scaladsl.{Effect, EffectBuilder, EventSourcedBehavior, ReplyEffect, RetentionCriteria}
+import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior, ReplyEffect, RetentionCriteria}
 import counter.GuardianCounter.{GuardianCommand, Print}
 
 object Counter {
@@ -16,8 +14,8 @@ object Counter {
     Behaviors.setup[CounterCommand] { context =>
       context.log.info("Counter started")
 
-      //todo: withEnforcedReplies weglassen?
   EventSourcedBehavior
+    .withEnforcedReplies
       [CounterCommand, Event, State](
       persistenceId = PersistenceId(id.toString, "counter-id"),
       emptyState = State(0),
@@ -38,7 +36,7 @@ object Counter {
     }
   }
 
-  val commandHandlerCounter: (State, CounterCommand) => Effect[Event, State] = {
+  val commandHandlerCounter: (State, CounterCommand) => ReplyEffect[Event, State] = {
     (state, command) =>
       command match {
         case IncreaseCommand(replyTo) =>

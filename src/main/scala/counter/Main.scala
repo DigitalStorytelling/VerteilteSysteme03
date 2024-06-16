@@ -1,7 +1,6 @@
 package counter
 
 import akka.actor.typed.ActorSystem
-import counter.Counter.CounterCommand
 import counter.GuardianCounter.GuardianCommand
 
 import scala.io.StdIn

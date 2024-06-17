@@ -15,41 +15,37 @@ object Finance {
   val financekey = ServiceKey[ConsumerController.Command[SaveCustomerAndPrice]]("Finance")
   val financeGuardianKey: ServiceKey[CommandFinance] = ServiceKey[CommandFinance]("FinanceGuardian")
 
-  def apply(id: Long, mapCustomer: HashMap[Int, Int] = new HashMap()): Behavior[CommandFinance] =
+  def apply(id: Long): Behavior[CommandFinance] =
     Behaviors.setup { context =>
 
       val deliveryAdapter =
         context.messageAdapter[ConsumerController.Delivery[SaveCustomerAndPrice]](WrappedSaveCustomerAndPrice(_))
 
-      if (mapCustomer.isEmpty) {
-        context.system.receptionist ! Receptionist.Register(financeGuardianKey, context.self)
+      context.system.receptionist ! Receptionist.Register(financeGuardianKey, context.self)
 
-        val consumerController =
-          context.spawn(ConsumerController(financekey), "consumerControllerFinance")
+      val consumerController =
+        context.spawn(ConsumerController(financekey), "consumerControllerFinance")
 
-        consumerController ! ConsumerController.Start(deliveryAdapter)
-      }
+      consumerController ! ConsumerController.Start(deliveryAdapter)
 
       EventSourcedBehavior.withEnforcedReplies
           [CommandFinance, EventFinance, State](
             persistenceId = PersistenceId(id.toString, "finance-id"),
-            //todo new HashMap()
-            emptyState = State(mapCustomer),
+            emptyState = State(new HashMap[Int, Int]()),
             commandHandler = commandHandlerFinance,
             eventHandler = eventHandlerFinance
           )
         .withRetention(
-          RetentionCriteria.snapshotEvery(numberOfEvents = 1, keepNSnapshots = 5)
+          RetentionCriteria.snapshotEvery(numberOfEvents = 100, keepNSnapshots = 5)
         )
     }
-
 
   val eventHandlerFinance: (State, EventFinance) => State = { (state, event) =>
 
     event match {
-      case SaveCustomerAndPriceEvent(customer, totalPrice) => {
-        val currentSum = state.mapCustomer.getOrElse(customer.id, 0)
-        state.copy(state.mapCustomer + (customer.id -> (currentSum + totalPrice)))
+      case SaveCustomerAndPriceEvent(id, totalPrice) => {
+        val currentSum = state.mapCustomer.getOrElse(id, 0)
+        state.copy(state.mapCustomer + (id -> (currentSum + totalPrice)))
       }
     }
   }
@@ -58,7 +54,7 @@ object Finance {
     (state, command) =>
       command match {
         case WrappedSaveCustomerAndPrice(delivery) =>
-          Effect.persist(SaveCustomerAndPriceEvent(delivery.message.customer, delivery.message.totalPrice))
+          Effect.persist(SaveCustomerAndPriceEvent(delivery.message.customer.id, delivery.message.totalPrice))
             .thenReply(delivery.confirmTo)(s => ConsumerController.Confirmed)
 
         // No Persist necessary, only Print
@@ -68,11 +64,17 @@ object Finance {
   }
 
   final case class State(@JsonDeserialize(keyAs = classOf[Int]) mapCustomer: HashMap[Int, Int])
+
   sealed trait CommandFinance
+
   case class SaveCustomerAndPrice(customer: Customer, totalPrice: Int) extends CommandFinance
+
   case class PrintCustomerAndPrice(id: Int, replyTo: ActorRef[CommandReplyDumper]) extends CommandFinance
+
   case class WrappedSaveCustomerAndPrice(d: ConsumerController.Delivery[SaveCustomerAndPrice]) extends CommandFinance
+
   sealed trait EventFinance
-  case class SaveCustomerAndPriceEvent(customer: Customer, totalPrice: Int) extends EventFinance
+
+  case class SaveCustomerAndPriceEvent(id: Int, totalPrice: Int) extends EventFinance
 
 }

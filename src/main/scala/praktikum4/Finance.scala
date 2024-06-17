@@ -18,8 +18,6 @@ object Finance {
   def apply(id: Long, mapCustomer: HashMap[Int, Int] = new HashMap()): Behavior[CommandFinance] =
     Behaviors.setup { context =>
 
-      context.log.info("Finance")
-
       val deliveryAdapter =
         context.messageAdapter[ConsumerController.Delivery[SaveCustomerAndPrice]](WrappedSaveCustomerAndPrice(_))
 
@@ -35,12 +33,13 @@ object Finance {
       EventSourcedBehavior.withEnforcedReplies
           [CommandFinance, EventFinance, State](
             persistenceId = PersistenceId(id.toString, "finance-id"),
-            emptyState = State(new HashMap()),
+            //todo new HashMap()
+            emptyState = State(mapCustomer),
             commandHandler = commandHandlerFinance,
             eventHandler = eventHandlerFinance
           )
         .withRetention(
-          RetentionCriteria.snapshotEvery(numberOfEvents = 100, keepNSnapshots = 2)
+          RetentionCriteria.snapshotEvery(numberOfEvents = 1, keepNSnapshots = 5)
         )
     }
 
@@ -50,8 +49,7 @@ object Finance {
     event match {
       case SaveCustomerAndPriceEvent(customer, totalPrice) => {
         val currentSum = state.mapCustomer.getOrElse(customer.id, 0)
-        val updatedCustomer = state.mapCustomer + (customer.id -> (currentSum + totalPrice))
-        state.copy(updatedCustomer)
+        state.copy(state.mapCustomer + (customer.id -> (currentSum + totalPrice)))
       }
     }
   }
@@ -74,27 +72,7 @@ object Finance {
   case class SaveCustomerAndPrice(customer: Customer, totalPrice: Int) extends CommandFinance
   case class PrintCustomerAndPrice(id: Int, replyTo: ActorRef[CommandReplyDumper]) extends CommandFinance
   case class WrappedSaveCustomerAndPrice(d: ConsumerController.Delivery[SaveCustomerAndPrice]) extends CommandFinance
-
   sealed trait EventFinance
   case class SaveCustomerAndPriceEvent(customer: Customer, totalPrice: Int) extends EventFinance
 
 }
-
-//todo: remove
-/*
-    Behaviors.receiveMessage {
-    case WrappedSaveCustomerAndPrice(delivery) =>
-
-     val currentSum = mapCustomer.getOrElse(delivery.message.customer.id, 0)
-     val updatedCustomer = mapCustomer + (delivery.message.customer.id -> (currentSum + delivery.message.totalPrice))
-
-     delivery.confirmTo ! ConsumerController.Confirmed
-     apply(id, updatedCustomer)
-
-  case currentCustomer: PrintCustomerAndPrice =>
-
-    currentCustomer.replyTo ! PrintSumTotalOrdersOfCustomer(currentCustomer.id, mapCustomer.get(currentCustomer.id))
-    Behaviors.same
-
-}
-*/

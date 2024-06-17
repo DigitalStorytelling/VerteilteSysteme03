@@ -3,7 +3,7 @@ package praktikum4
 import akka.actor.typed.{ActorRef, Behavior}
 import akka.actor.typed.receptionist.Receptionist
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
-import praktikum4.Finance.CommandFinance
+import praktikum4.Finance.{CommandFinance, PrintCustomerAndPrice}
 import praktikum4.Stock.CommandStock
 
 object Guardian {
@@ -63,6 +63,7 @@ object Guardian {
       val actorReader = context.spawnAnonymous(Reader())
       context.log.info("Start Reader")
       context.spawnAnonymous(OrderDispatcher(actorReader, financeActor, stockActor))
+
       apply(stockActor, financeActor, guardianUpOnlyOnce = false, readerUp = true)
 
       // only Finance or Stock is found. Needs another run to have both

@@ -3,7 +3,7 @@ package praktikum4
 import akka.actor.typed.{ActorRef, Behavior}
 import akka.actor.typed.receptionist.Receptionist
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
-import praktikum4.Finance.{CommandFinance, PrintCustomerAndPrice}
+import praktikum4.Finance.CommandFinance
 import praktikum4.Stock.CommandStock
 
 object Guardian {

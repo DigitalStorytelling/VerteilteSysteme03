@@ -37,13 +37,9 @@ object OrderDispatcher {
       // Start reading and start work-pulling
       actorReader ! Next(context.self)
 
-
-      //todo: Doppelt drin?
-      // Am Anfang einmal abfragen Snapchat
-      // vermutlich reply dumper nicht der gleiche?
+      //Check Snapshot
       val actorReplyDumper: ActorRef[ReplyDumper.CommandReplyDumper] = context.spawnAnonymous(ReplyDumper())
-      actorFinance ! PrintCustomerAndPrice(19448, actorReplyDumper) // answer: 868923685
-      //Behaviors.same
+      actorFinance ! PrintCustomerAndPrice(19448, actorReplyDumper) // answer: 868923685, durch Snapshot andere Antwort möglich
 
       Behaviors.withStash(2000) { stashBuffer: StashBuffer[CommandOrderDispatcher] =>
          new OrderDispatcher(context, stashBuffer, actorReader, actorFinance, actorStock).waitForNext()
